@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<title>Document</title>
+</head>
+<body>
+	<script>
+		class MyPromise {
+			constructor (fn) {
+				if (typeof fn !== 'function') {
+					throw Error('Promise resolver '+fn+' is not a function')
+				}
+				let self = this;
+				this.status = 'pending';
+				this.data = undefined;
+				let resolved = data => {
+					if (this.status === 'pending') {
+						this.status = 'resolved';
+						this.data = data;
+						this.onResolvedArr.forEach(fn => fn())
+					}
+				}
+				let rejected = err => {
+					if (this.status === 'pending') {
+						this.status = 'rejected';
+						this.data = err;
+						this.onRejectedArr.forEach(fn => fn())
+					}
+				}
+				fn(resolved,rejected)
+			}
+			then(onResolved,onRejected) {
+				onResolved = typeof onResolved == 'function'?onResolved:()=>{return this};
+            	onRejected = typeof onRejected == 'function'?onRejected:()=>{return this};
+				let self = this;
+				let dealResolved = (resolved,rejected) => {
+						let res = onResolved(self.data);
+						if (res instanceof MyPromise) {
+							res.then(resolved,rejected);
+						}else {
+							resolved(self);
+						}
+				}
+				let dealRejected = (resolved,rejected) => {
+						let err = onRejected(self.data);
+						if (err instanceof MyPromise) {
+							err.then(resolved,rejected);
+						}else {
+							resolved(err);
+						}
+				}
+				if (this.status === 'resolved') {
+					return new MyPromise((resolved,rejected)=> {
+						dealResolved(resolved,rejected);
+					})	
+				}
+				if (this.status === 'rejected') {
+					return new MyPromise((resolved,rejected)=> {
+						dealRejected(resolved,rejected);
+					})
+				}
+				if (this.status === 'pending') {
+					return new MyPromise((resolved,rejected) => {
+						self.onResolvedArr.push(
+							(function (onResolved) {
+								return function () {		
+									dealResolved(resolved,rejected);
+								}
+							})(onResolved)
+						)
+						self.onRejectedArr.push(
+							(function (onRejected) {
+								return function () {			
+									dealRejected(resolved,rejected);
+								}
+							})(onRejected)
+						)
+					})
+				}
+			}
+		}
+		Object.assign(MyPromise.prototype,{onResolvedArr:[],onRejectedArr:[]})
+
+		var p1 = new Promise((resolved,rejected)=>{
+			setTimeout(function () {
+				resolved(123);
+			},2000)
+		})
+		var p2 = p1.then(null,data=>new Promise((resolved,rejected) => {rejected('err')}));
+
+		var p3 = new MyPromise(function (resolved,rejected) {
+			resolved(123);
+		})
+		var p4 = p3.then(null,data=>new MyPromise((resolved,rejected) => {rejected('err')}));
+		
+		
+		
+
+	</script>
+</body>
+</html>
